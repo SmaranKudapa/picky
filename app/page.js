@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import QRCode from "qrcode";
 import { PITCH_LIMIT, NAME_LIMIT } from "@/lib/config";
-import Halftone from "./components/Halftone";
 import Mascot from "./components/Mascot";
 
 const MapView = dynamic(() => import("./MapView"), { ssr: false, loading: () => <div className="map" /> });
@@ -382,11 +381,10 @@ export default function Home() {
 
   /* ---------- landing ---------- */
   if (view === "landing") {
-    const valid = joinCode.replace(/[^A-Z0-9]/gi, "").length >= 3;
+    const typed = joinCode.replace(/[^A-Z0-9]/gi, "").length;
+    const valid = typed >= 3;
     return (
       <main className="landing">
-        <div className="land-map"><Halftone phase="idle" focus={{ x: 0.66, y: 0.5 }} /></div>
-        <div className="land-fade" />
         <span className="wordmark">picky</span>
         <section className="land-copy">
           <div>
@@ -400,7 +398,7 @@ export default function Home() {
                 onChange={(e) => setJoinCode(formatCode(e.target.value))} />
               <button className="round ink" type="submit" aria-label="Join group" disabled={!valid || busy}><ArrowRight /></button>
             </div>
-            <button className="pill orange" type="button" onClick={createGroup} disabled={busy}>New group</button>
+            <button className="pill orange" type="button" onClick={createGroup} disabled={busy || typed > 0}>New group</button>
             {error && <p className="err" role="alert">{error}</p>}
           </form>
         </section>
@@ -409,14 +407,12 @@ export default function Home() {
   }
 
   const topbar = (tone) => <TopBar display={display} onLeave={leave} onCopy={copyCode} tone={tone} />;
-  const sideMap = (phase) => <Halftone phase={phase} friends={Math.max(1, active.length)} focus={{ x: 0.55, y: 0.48 }} seed={19} />;
 
   /* ---------- pitch ---------- */
   if (view === "pitch") {
     const over = pitch.length > PITCH_LIMIT;
     return (
-      <div className="split">
-        <aside className="side" aria-hidden="true">{sideMap("waiting")}</aside>
+      <div className="split solo">
         <main className="screen main">
           {topbar()}
           <div className="pitch-body">
@@ -534,8 +530,6 @@ export default function Home() {
   if (showFinding) {
     return (
       <main className="finding-screen">
-        <div className="bg" aria-hidden="true"><Halftone phase="finding" dark friends={Math.max(1, pitchedCount)} focus={{ x: 0.5, y: 0.42 }} seed={31} /></div>
-        <div className="finding-fade" />
         {topbar("dark")}
         <div className="finding-copy" aria-live="polite">
           <h1 className="finding-word">finding.</h1>
@@ -547,11 +541,9 @@ export default function Home() {
 
   /* ---------- the table ---------- */
   return (
-    <div className="split">
-      <aside className="side" aria-hidden="true">{sideMap("waiting")}</aside>
+    <div className="split solo">
       <main className="screen main">
         {topbar()}
-        <div className="strip" aria-hidden="true">{sideMap("waiting")}</div>
         <div className="table-head">
           <h1 className="serif-h">{pitchedCount} at the<br />table</h1>
           <div className="icon-row">
