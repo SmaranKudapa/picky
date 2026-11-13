@@ -28,8 +28,14 @@ npm run dev                  # http://localhost:3000 (in-memory store works loca
 | `app/MapView.js` | Leaflet map that marks every nearby place, stars the pick and crosses out the losers |
 | `app/api/groups/...` | Create a group, poll the state, save your pitch/typing/thumb, and Find |
 | `lib/places.js` | Real restaurants from OpenStreetMap (Overpass, no key). Caches the last good result |
-| `lib/pick.js` | The Claude call. Returns the winner, a reason per person, backups and why the others lost |
-| `lib/config.js` | Pitch limit (80 chars), default location |
+| `lib/pick.js` | The Claude call (structured JSON output). Returns the winner, a reason per person, 2 backups and why the others lost. Every id is checked, and any bad reply, error or timeout falls back to the closest place |
+| `lib/config.js` | Pitch limit (80 chars), default location, how long before a stuck "finding…" resets |
+
+## Reliability (so the demo can't get stuck)
+- Find fits inside Vercel's 60 s limit: OpenStreetMap gets about 15 s across its 3 mirrors, and Claude gets 35 s.
+- If Claude fails in any way, the app still finishes Find with the closest place (shown as "Demo mode").
+- If a Find dies partway, phones leave "finding…" after 75 s and the leader can hit Find again.
+- The restaurant list is cached for 7 days. If OpenStreetMap is down, the app reuses the last good list from within 1.5 km.
 
 ## Demo tips
 - Do one practice Find at the demo spot beforehand. The restaurant list gets cached, so the live demo still works if the map data service is slow.

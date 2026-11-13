@@ -281,6 +281,10 @@ export default function Home() {
       });
       const d = await r.json();
       if (d.group) setGroup(d.group);
+      else if (d.error) {
+        setToast(d.error);
+        setTimeout(() => setToast(""), 2500);
+      }
     } catch {}
     setFinding(false);
   };
