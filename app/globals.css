@@ -28,6 +28,10 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--paper); color: var(--ink); }
 body { font: 400 16px/1.45 var(--sans); -webkit-font-smoothing: antialiased; min-height: 100svh; overflow-x: clip; }
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1000; opacity: .3; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .35 0 0 0 0 .25 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 a { color: inherit; }
@@ -68,6 +72,9 @@ canvas { display: block; }
 
 /* ---------- landing ---------- */
 .landing { position: relative; min-height: 100svh; overflow: hidden; }
+.land-map { position: absolute; left: 0; right: 0; top: 0; height: 62svh; }
+.land-map canvas { width: 100%; height: 100%; }
+.land-fade { position: absolute; left: 0; right: 0; top: calc(62svh - 190px); height: 190px; background: linear-gradient(180deg, rgba(245, 238, 226, 0), var(--paper) 85%); pointer-events: none; }
 .landing .wordmark { position: absolute; z-index: 5; left: 20px; top: calc(20px + env(safe-area-inset-top)); background: var(--paper); padding: 6px 10px; border-radius: 10px; }
 .land-copy { position: relative; z-index: 4; min-height: 100svh; display: flex; flex-direction: column; justify-content: flex-end; gap: 30px; padding: 0 20px calc(28px + env(safe-area-inset-bottom)); pointer-events: none; }
 .land-copy > * { pointer-events: auto; }
@@ -105,6 +112,9 @@ canvas { display: block; }
 @keyframes bubble { from { transform: scale(0); } }
 
 /* ---------- table ---------- */
+.strip { position: relative; height: 176px; margin-top: 10px; overflow: hidden; }
+.strip canvas { width: 100%; height: 100%; }
+.strip::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 60px; background: linear-gradient(180deg, rgba(245, 238, 226, 0), var(--paper)); pointer-events: none; }
 .table-head { padding: 4px 22px 0; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
 .serif-h { margin: 0; font: 400 52px/.9 var(--serif); letter-spacing: -.03em; }
 .icon-row { display: flex; gap: 8px; }
@@ -137,6 +147,9 @@ canvas { display: block; }
 
 /* ---------- finding ---------- */
 .finding-screen { position: relative; min-height: 100svh; overflow: hidden; background: var(--ink); color: var(--sheet); }
+.finding-screen .bg { position: absolute; inset: 0; }
+.finding-screen .bg canvas { width: 100%; height: 100%; }
+.finding-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 44svh; background: linear-gradient(180deg, rgba(34, 23, 15, 0), var(--ink) 70%); pointer-events: none; }
 .finding-copy { position: absolute; left: 22px; right: 22px; bottom: calc(40px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; }
 .finding-word { margin: 0; font: italic 400 104px/.85 var(--serif); letter-spacing: -.04em; animation: rise 1.2s var(--spring) both; }
 @keyframes rise { from { transform: translateY(30px); opacity: 0; } }
@@ -146,6 +159,7 @@ canvas { display: block; }
 .pick-screen { position: relative; min-height: 100svh; background: var(--ink); }
 .pick-map { position: relative; height: 34svh; min-height: 240px; background: var(--paper-2); }
 .pick-map .leaflet-bottom { bottom: 30px; }
+.pick-map canvas { display: block; width: 100%; height: 100%; }
 .pick-screen .topbar { position: absolute; left: 0; right: 0; top: 0; }
 .drawer { position: relative; z-index: 10; margin-top: -30px; border-radius: 30px 30px 0 0; background: var(--ink); color: var(--sheet); padding: 26px 24px calc(28px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; min-height: calc(66svh + 30px); animation: drawer 560ms var(--drawer) both; box-shadow: 0 -20px 40px -24px rgba(34, 23, 15, .6); }
 @keyframes drawer { from { transform: translateY(100%); } }
@@ -211,6 +225,8 @@ canvas { display: block; }
 /* ---------- desktop ---------- */
 @media (min-width: 900px) {
   .landing .wordmark { left: 56px; top: 40px; font-size: 32px; }
+  .land-map { left: 36%; right: 0; height: 100svh; }
+  .land-fade { top: 0; bottom: 0; height: auto; left: 36%; width: 240px; background: linear-gradient(90deg, var(--paper), rgba(245, 238, 226, 0)); }
   .land-copy { justify-content: center; max-width: 600px; padding: 0 0 0 64px; gap: 56px; }
   .idk { font-size: clamp(180px, 19vw, 280px); }
   .idk-sub { font-size: 46px; }
@@ -218,9 +234,9 @@ canvas { display: block; }
 
   .split { display: grid; grid-template-columns: minmax(0, 1fr) 480px; min-height: 100svh; }
   .split > .side { position: sticky; top: 0; height: 100svh; overflow: hidden; border-right: 1px solid var(--line); }
+  .split > .side canvas { width: 100%; height: 100%; }
   .split > .main { position: relative; min-height: 100svh; display: flex; flex-direction: column; }
-  .split.solo { grid-template-columns: minmax(0, 480px); justify-content: center; }
-  .split.solo > .main { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  .split .strip { display: none; }
   .split .dock { position: sticky; left: auto; right: auto; margin-top: auto; }
   .split .members { padding-bottom: 40px; }
 
