@@ -403,7 +403,7 @@ export default function Home() {
           <button className="btn" onClick={submitPitch} disabled={!name.trim() || !pitch.trim() || over}>
             Pitch it →
           </button>
-          <div className="hint">Diet, budget, cravings, vetoes, how far you'll walk. Claude makes it work for everyone.</div>
+          <div className="hint">Diet, budget, cravings, vetoes, how far you'll walk. The AI makes it work for everyone.</div>
         </div>
       </main>
     );
@@ -423,7 +423,7 @@ export default function Home() {
         </div>
 
         <div className="pick">
-          <small>⭐ CLAUDE'S PICK FOR ALL {active.length} OF YOU</small>
+          <small>⭐ THE PICK FOR ALL {active.length} OF YOU</small>
           <h2>{winner.name}</h2>
           <div className="meta">
             {winner.walkMin} min walk{winner.cuisine ? ` · ${winner.cuisine}` : ""}
