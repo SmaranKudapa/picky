@@ -1,11 +1,16 @@
 "use client";
+// picky — the whole phone flow on one page: landing → pitch → the table → finding → the pick → everyone's in.
+// State, polling and API calls are unchanged from main; only the views are new (see the UI reference canvas).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import QRCode from "qrcode";
 import { PITCH_LIMIT, NAME_LIMIT } from "@/lib/config";
+import Halftone from "./components/Halftone";
+import Mascot from "./components/Mascot";
 
 const MapView = dynamic(() => import("./MapView"), { ssr: false, loading: () => <div className="map" /> });
 
-const COLORS = ["#f97316", "#2563eb", "#16a34a", "#9333ea", "#db2777", "#0891b2", "#ca8a04", "#dc2626", "#4f46e5", "#059669"];
+const COLORS = ["#1d8a4b", "#d6336c", "#2b6fe0", "#e5520a", "#7048e8", "#0c8599", "#b8860b", "#c2255c", "#4f46e5", "#2f9e44"];
 function colorFor(id = "") {
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
@@ -30,35 +35,45 @@ const saveSession = (s) => {
     s ? localStorage.setItem(SESSION_KEY, JSON.stringify(s)) : localStorage.removeItem(SESSION_KEY);
   } catch {}
 };
+// "taco42" → "TACO-42" while typing. Dashes and case never matter to the server.
+const formatCode = (v) => {
+  const n = String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+  const m = n.match(/^([A-Z]+)(\d+)$/);
+  return m ? `${m[1]}-${m[2]}` : n;
+};
+const shortHours = (h) => (!h ? "" : h.length > 22 ? "" : h);
+const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function Avatar({ id, name, small }) {
+/* ---------------- icons (stroke SVG) ---------------- */
+const Icon = ({ d, size = 22, width = 2.4, children }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d ? <path d={d} /> : children}
+  </svg>
+);
+const ArrowRight = () => <Icon d="M5 12h14M13 6l6 6-6 6" size={24} />;
+const ArrowUp = () => <Icon d="M12 19V5M6 11l6-6 6 6" size={30} />;
+const Search = () => <Icon size={24} width={2.6}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></Icon>;
+const Share = () => <Icon size={20} width={2}><path d="M12 15V3M7 8l5-5 5 5" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></Icon>;
+const QrIcon = () => <Icon size={20} width={2}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3M21 14v7h-4M14 18v3" /></Icon>;
+const Pencil = () => <Icon size={17} width={2}><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></Icon>;
+const Walk = () => <Icon size={24} width={2.2}><circle cx="13" cy="4" r="2" /><path d="M10 21l2-6 3 3v3M8 12l3-4 4 2 3 3M11 8l-1 5" /></Icon>;
+const MapIcon = () => <Icon size={26} width={2}><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></Icon>;
+
+function Avatar({ id, name, small, leader }) {
   return (
-    <div className={`av${small ? " sm" : ""}`} style={{ background: colorFor(id) }}>
+    <span className={`avatar${small ? " sm" : ""}`} style={{ background: colorFor(id) }} aria-hidden="true">
       {initial(name)}
-    </div>
+      {leader && <span className="star">★</span>}
+    </span>
   );
 }
 
-function PitchInput({ value, onChange, disabled, autoFocus }) {
-  const over = value.length > PITCH_LIMIT;
+function TopBar({ display, onLeave, onCopy, tone = "" }) {
   return (
-    <div>
-      <textarea
-        className={`pitchbox${over ? " over picky" : ""}`}
-        placeholder={'e.g. "vegetarian and broke lol" or "anything but pizza"'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        autoFocus={autoFocus}
-        maxLength={PITCH_LIMIT + 60}
-      />
-      <div className={`counter${over ? " over" : ""}`}>
-        <span>{over ? "dont be picky 😒" : "What do you want? Keep it short."}</span>
-        <span>
-          {value.length}/{PITCH_LIMIT}
-        </span>
-      </div>
-    </div>
+    <header className={`topbar ${tone}`}>
+      <button className="wordmark" onClick={onLeave} title="Leave group">picky</button>
+      <button className="chip" onClick={onCopy} aria-label={`Group code ${display}, tap to copy`}>{display}</button>
+    </header>
   );
 }
 
@@ -76,9 +91,19 @@ export default function Home() {
 
   const [name, setName] = useState("");
   const [pitch, setPitch] = useState("");
-  const [editing, setEditing] = useState(false);
   const [finding, setFinding] = useState(false);
   const [toast, setToast] = useState("");
+  const [showQR, setShowQR] = useState(false);
+  const [qr, setQr] = useState("");
+  const [burst, setBurst] = useState(0);
+  const pitchBox = useRef(null);
+  const thumbBtn = useRef(null);
+  const findBtn = useRef(null);
+
+  const say = (t, ms = 1800) => {
+    setToast(t);
+    setTimeout(() => setToast(""), ms);
+  };
 
   // ---------- boot: resume session or prefill invite code ----------
   useEffect(() => {
@@ -91,7 +116,7 @@ export default function Home() {
         .then((d) => {
           if (!d) {
             saveSession(null);
-            if (invite) setJoinCode(invite.toUpperCase());
+            if (invite) setJoinCode(formatCode(invite));
             return setView("landing");
           }
           setCode(s.code);
@@ -107,7 +132,7 @@ export default function Home() {
         })
         .catch(() => setView("landing"));
     } else {
-      if (invite) setJoinCode(invite.toUpperCase());
+      if (invite) setJoinCode(formatCode(invite));
       setView("landing");
     }
   }, []);
@@ -166,6 +191,13 @@ export default function Home() {
   );
 
   const onEdit = (nextName, nextPitch) => {
+    // Crossing the limit shakes the box (it's a reaction, so it only fires once per crossing).
+    if (nextPitch.length > PITCH_LIMIT && pitch.length <= PITCH_LIMIT && pitchBox.current?.animate && !reduced()) {
+      pitchBox.current.animate(
+        [{ transform: "none" }, { transform: "translateX(-9px) rotate(-1deg)" }, { transform: "translateX(8px) rotate(1deg)" }, { transform: "translateX(-6px)" }, { transform: "translateX(4px)" }, { transform: "none" }],
+        { duration: 380, easing: "cubic-bezier(.36,.07,.19,.97)" }
+      );
+    }
     setName(nextName);
     setPitch(nextPitch);
     const payload = { name: nextName, typing: true };
@@ -240,8 +272,12 @@ export default function Home() {
     setMembers([]);
     setName("");
     setPitch("");
-    setEditing(false);
+    setShowQR(false);
     setView("landing");
+  };
+
+  const copyCode = () => {
+    navigator.clipboard?.writeText(group?.display || code).then(() => say("Code copied")).catch(() => {});
   };
 
   const share = async () => {
@@ -250,11 +286,17 @@ export default function Home() {
       if (navigator.share) await navigator.share({ title: "picky", text: `Where should we eat? Join ${group?.display || code} on picky`, url });
       else {
         await navigator.clipboard.writeText(url);
-        setToast("Link copied!");
-        setTimeout(() => setToast(""), 1500);
+        say("Invite link copied");
       }
     } catch {}
   };
+
+  useEffect(() => {
+    if (!showQR || !code) return;
+    QRCode.toDataURL(`${window.location.origin}/?g=${code}`, { margin: 1, width: 240, color: { dark: "#22170f", light: "#fffaf2" } })
+      .then(setQr)
+      .catch(() => {});
+  }, [showQR, code]);
 
   const getLocation = () =>
     new Promise((resolve) => {
@@ -267,8 +309,10 @@ export default function Home() {
     });
 
   const find = async () => {
+    findBtn.current?.classList.remove("squash");
+    void findBtn.current?.offsetWidth;
+    findBtn.current?.classList.add("squash");
     setFinding(true);
-    setEditing(false);
     clearTimeout(idleTimer.current);
     pending.current = { ...(pending.current || {}), typing: false };
     await flush();
@@ -281,15 +325,19 @@ export default function Home() {
       });
       const d = await r.json();
       if (d.group) setGroup(d.group);
-      else if (d.error) {
-        setToast(d.error);
-        setTimeout(() => setToast(""), 2500);
-      }
+      else if (d.error) say(d.error, 2500);
     } catch {}
     setFinding(false);
   };
 
   const setThumb = async (val) => {
+    if (val && thumbBtn.current?.animate && !reduced()) {
+      thumbBtn.current.animate([{ transform: "scale(1)" }, { transform: "scale(.88)" }, { transform: "scale(1.15)" }, { transform: "scale(1)" }], {
+        duration: 520,
+        easing: "cubic-bezier(.34,1.56,.64,1)",
+      });
+      setBurst((b) => b + 1);
+    }
     setMembers((ms) => ms.map((m) => (m.id === memberId ? { ...m, thumb: val } : m)));
     await fetch(`/api/groups/${code}/member`, {
       method: "POST",
@@ -301,6 +349,7 @@ export default function Home() {
   // ---------- derived ----------
   const result = group?.result || null;
   const status = group?.status;
+  const display = group?.display || formatCode(code);
   const isLeader = group && memberId && group.leaderId === memberId;
   const visible = members.filter((m) => m.name || m.pitch || serverNow - m.typingAt < 2500 || m.id === memberId);
   const active = members.filter((m) => m.name || m.pitch);
@@ -320,300 +369,240 @@ export default function Home() {
             winnerId: result.winnerId,
             backupIds: (result.backups || []).map((b) => b.id),
             ruledOutIds: (result.ruledOut || []).map((b) => b.id),
+            reasons: Object.fromEntries((result.ruledOut || []).map((r) => [r.id, r.reason])),
           }
         : null,
     [result?.foundAt] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const winner = result ? placeById[result.winnerId] : null;
+  const toastEl = toast ? <div className="toast" role="status">{toast}</div> : null;
 
   // =================== VIEWS ===================
-  if (view === "loading") return <main className="app" />;
+  if (view === "loading") return <main className="screen" />;
 
+  /* ---------- landing ---------- */
   if (view === "landing") {
+    const valid = joinCode.replace(/[^A-Z0-9]/gi, "").length >= 3;
     return (
-      <main className="app">
-        <div className="hero">
-          <div className="brand">
-            pick<span>y</span>
+      <main className="landing">
+        <div className="land-map"><Halftone phase="idle" focus={{ x: 0.66, y: 0.5 }} /></div>
+        <div className="land-fade" />
+        <span className="wordmark">picky</span>
+        <section className="land-copy">
+          <div>
+            <h1 className="idk">idk.</h1>
+            <p className="idk-sub">where do you want to eat?</p>
           </div>
-          <div className="tag">Ends the "idk, where do you want to eat?" loop in 30 seconds.</div>
-        </div>
-
-        <div className="card">
-          <div className="label">Got a group code?</div>
-          <input
-            className="input code-input"
-            placeholder="TACO42"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && joinGroup()}
-            autoCapitalize="characters"
-            autoComplete="off"
-            maxLength={12}
-          />
-          <button className="btn dark" onClick={joinGroup} disabled={busy || !joinCode.trim()}>
-            Join group →
-          </button>
-        </div>
-
-        <div className="or">OR</div>
-
-        <div className="card">
-          <div className="label">Starting the hunt?</div>
-          <button className="btn" style={{ marginTop: 0 }} onClick={createGroup} disabled={busy}>
-            🍽️ Make a new group
-          </button>
-          <div className="hint">You'll be the leader. You hit "Find" when everyone's in.</div>
-        </div>
-        {error && <div className="err">{error}</div>}
+          <form className="land-form" onSubmit={(e) => { e.preventDefault(); if (valid && !busy) joinGroup(); }}>
+            <div className="code-row">
+              <label className="sr" htmlFor="code">Group code</label>
+              <input id="code" className="code-input" placeholder="TACO-42" value={joinCode} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                onChange={(e) => setJoinCode(formatCode(e.target.value))} />
+              <button className="round ink" type="submit" aria-label="Join group" disabled={!valid || busy}><ArrowRight /></button>
+            </div>
+            <button className="pill orange" type="button" onClick={createGroup} disabled={busy}>New group</button>
+            {error && <p className="err" role="alert">{error}</p>}
+          </form>
+        </section>
       </main>
     );
   }
 
-  const topbar = (
-    <div className="topbar">
-      <button className="mini-brand" style={{ background: "none" }} onClick={leave} title="Leave group">
-        pick<span>y</span>
-      </button>
-      <div className="codechip">
-        Group<b>{group?.display || code}</b>
-      </div>
-    </div>
-  );
+  const topbar = (tone) => <TopBar display={display} onLeave={leave} onCopy={copyCode} tone={tone} />;
+  const sideMap = (phase) => <Halftone phase={phase} friends={Math.max(1, active.length)} focus={{ x: 0.55, y: 0.48 }} seed={19} />;
 
+  /* ---------- pitch ---------- */
   if (view === "pitch") {
     const over = pitch.length > PITCH_LIMIT;
     return (
-      <main className="app">
-        {topbar}
-        <div className="card">
-          <div className="label">Your name</div>
-          <input
-            className="input"
-            placeholder="Aisha"
-            value={name}
-            maxLength={NAME_LIMIT}
-            onChange={(e) => onEdit(e.target.value, pitch)}
-            autoFocus
-          />
-        </div>
-        <div className="card">
-          <div className="label">Your pitch</div>
-          <PitchInput value={pitch} onChange={(v) => onEdit(name, v)} />
-          <button className="btn" onClick={submitPitch} disabled={!name.trim() || !pitch.trim() || over}>
-            Pitch it →
-          </button>
-          <div className="hint">Diet, budget, cravings, vetoes, how far you'll walk. The AI makes it work for everyone.</div>
-        </div>
-      </main>
-    );
-  }
-
-  // ---------- room ----------
-  const showFinding = status === "finding" || (finding && status !== "done");
-
-  if (status === "done" && result && winner) {
-    const fitFor = (m) => (result.perPerson || []).find((p) => p.memberId === m.id || p.name === m.name);
-    return (
-      <main className="app">
-        {topbar}
-        <div className="mapwrap">
-          <MapView {...mapProps} />
-          <div className="maplegend">{result.places.length} places nearby · ⭐ = the pick</div>
-        </div>
-
-        <div className="pick">
-          <small>⭐ THE PICK FOR ALL {active.length} OF YOU</small>
-          <h2>{winner.name}</h2>
-          <div className="meta">
-            {winner.walkMin} min walk{winner.cuisine ? ` · ${winner.cuisine}` : ""}
-            {winner.hours ? ` · ${winner.hours.length > 28 ? "hours listed" : winner.hours}` : ""}
-          </div>
-          {result.headline && <div className="headline">{result.headline}</div>}
-          <div className="fit">
-            {active.map((m) => {
-              const f = fitFor(m);
-              return (
-                <div key={m.id}>
-                  <Avatar id={m.id} name={m.name} small />
-                  <span>
-                    <b>{m.name}:</b> {f?.reason || "works for you"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {result.backups?.length > 0 && (
-          <div className="card" style={{ marginTop: 14 }}>
-            <div className="label">Backups if it's packed</div>
-            {result.backups.map((b) =>
-              placeById[b.id] ? (
-                <div className="alt" key={b.id}>
-                  <b>{placeById[b.id].name}</b>
-                  <span>
-                    {placeById[b.id].walkMin} min · {b.note}
-                  </span>
-                </div>
-              ) : null
-            )}
-          </div>
-        )}
-
-        {result.ruledOut?.length > 0 && (
-          <div className="card">
-            <div className="label">Why the others lost</div>
-            <div className="why">
-              {result.ruledOut.map((r) =>
-                placeById[r.id] ? (
-                  <div key={r.id}>
-                    🚫 <b>{placeById[r.id].name}</b>: {r.reason}
-                  </div>
-                ) : null
-              )}
+      <div className="split">
+        <aside className="side" aria-hidden="true">{sideMap("waiting")}</aside>
+        <main className="screen main">
+          {topbar()}
+          <div className="pitch-body">
+            <div>
+              <label className="sr" htmlFor="name">Your name</label>
+              <input id="name" className="name-input" placeholder="your name" value={name} maxLength={NAME_LIMIT} autoComplete="given-name" autoFocus={!name}
+                onChange={(e) => onEdit(e.target.value, pitch)} />
             </div>
-          </div>
-        )}
-        {result.mock && <div className="demo">Demo mode: {result.note}</div>}
-
-        <div className="sticky">
-          <div className="sticky-inner">
-            {allIn ? (
-              <>
-                <div className="allin">Everyone's in 🎉 Let's eat.</div>
-                <div className="dirs">
-                  <a className="g" href={`https://www.google.com/maps/dir/?api=1&destination=${winner.lat},${winner.lng}&travelmode=walking`} target="_blank" rel="noreferrer">
-                    🚶 Directions to {winner.name.length > 16 ? "there" : winner.name}
-                  </a>
-                  <a className="a" href={`https://maps.apple.com/?daddr=${winner.lat},${winner.lng}&dirflg=w`} target="_blank" rel="noreferrer">
-                    Apple Maps
-                  </a>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="thumbs">
-                  <div className="thumbrow">
-                    {active.map((m) => (
-                      <div key={m.id} style={{ opacity: m.thumb ? 1 : 0.3 }}>
-                        <Avatar id={m.id} name={m.name} small />
-                      </div>
-                    ))}
-                  </div>
-                  {thumbsCount}/{active.length} are down
-                </div>
-                {iAmIn ? (
-                  <button className={`thumbbtn${me?.thumb ? " on" : ""}`} onClick={() => setThumb(!me?.thumb)}>
-                    {me?.thumb ? "👍 You're in, waiting on the others" : "👍 I'm down"}
-                  </button>
-                ) : (
-                  <div className="waitnote">Waiting for everyone to thumbs-up…</div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (showFinding) {
-    return (
-      <main className="app">
-        {topbar}
-        <div className="finding">
-          <div className="spinner">🍜</div>
-          <h2>Finding the one place that works for all {pitchedCount} of you…</h2>
-          <p>Checking what's open nearby against everyone's pitch.</p>
-        </div>
-      </main>
-    );
-  }
-
-  // waiting room
-  const over = pitch.length > PITCH_LIMIT;
-  return (
-    <main className="app">
-      {topbar}
-      <div className="share">
-        <button onClick={share}>📨 Invite friends</button>
-        <button onClick={() => navigator.clipboard?.writeText(group?.display || code).then(() => { setToast("Code copied!"); setTimeout(() => setToast(""), 1500); })}>
-          📋 Copy code
-        </button>
-      </div>
-      {toast && <div className="hint" style={{ textAlign: "center", marginTop: -8, marginBottom: 10, fontWeight: 700 }}>{toast}</div>}
-
-      <div className="label">
-        The table · {pitchedCount} {pitchedCount === 1 ? "person" : "people"} in
-      </div>
-      <div className="members">
-        {visible.map((m) => {
-          const mine = m.id === memberId;
-          const typing = !mine && serverNow - m.typingAt < 2500;
-          const shownPitch = mine ? pitch : m.pitch;
-          const shownName = mine ? name : m.name;
-          return (
-            <div className="member" key={m.id}>
-              <Avatar id={m.id} name={shownName} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="mname">
-                  {shownName || "New friend"}
-                  {m.id === group?.leaderId && <span className="leader">LEADER</span>}
-                  {mine && <span className="you">YOU</span>}
-                  {mine && !editing && status === "waiting" && (
-                    <button className="editlink" onClick={() => setEditing(true)}>
-                      ✏️ edit
-                    </button>
-                  )}
-                </div>
-                {mine && editing ? (
-                  <div style={{ marginTop: 8 }}>
-                    <PitchInput value={pitch} onChange={(v) => onEdit(name, v)} autoFocus />
-                    <button
-                      className="btn dark"
-                      style={{ marginTop: 6, padding: 11 }}
-                      disabled={over || !pitch.trim()}
-                      onClick={() => {
-                        setEditing(false);
-                        clearTimeout(idleTimer.current);
-                        queueSave({ pitch, typing: false }, true);
-                      }}
-                    >
-                      Done
-                    </button>
-                  </div>
-                ) : (
-                  <div className={`mpitch${shownPitch ? "" : " empty"}`}>{shownPitch ? `"${shownPitch}"` : "thinking…"}</div>
-                )}
-                {typing && (
-                  <div className="typing">
-                    <span className="dots">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    {m.name || "Someone"} is typing
-                  </div>
-                )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <label className="sr" htmlFor="pitch">Your pitch</label>
+              <div ref={pitchBox} className={`pitch-box${over ? " over" : ""}`}>
+                <textarea id="pitch" className="pitch-text" placeholder="what do you want?" value={pitch} aria-invalid={over} aria-describedby="count"
+                  autoFocus={!!name} onChange={(e) => onEdit(name, e.target.value)} />
+              </div>
+              <div className={`meter${over ? " over" : ""}`}>
+                <div className="bar"><i style={{ transform: `scaleX(${Math.min(1, pitch.length / PITCH_LIMIT)})` }} /></div>
+                <span id="count" className="count" aria-live="polite">{pitch.length}/{PITCH_LIMIT}</span>
               </div>
             </div>
-          );
-        })}
+          </div>
+          <div className="pitch-foot">
+            {over ? (
+              <div className="peek" role="alert">
+                <span className="bubble">dont be picky 😒</span>
+                <Mascot mood="side" size={108} className="mascot" title="Dumpling, side-eyeing you" />
+              </div>
+            ) : <span />}
+            <button className="round orange" aria-label="Pitch it" onClick={submitPitch} disabled={!name.trim() || !pitch.trim() || over}><ArrowUp /></button>
+          </div>
+        </main>
       </div>
-      {group?.error && <div className="err">{group.error}</div>}
+    );
+  }
 
-      <div className="sticky">
-        <div className="sticky-inner">
+  const showFinding = status === "finding" || (finding && status !== "done");
+
+  /* ---------- everyone's in ---------- */
+  if (status === "done" && result && winner && allIn) {
+    const letters = "Let’s eat.".split("");
+    return (
+      <main className="go-screen">
+        <div className="flood">
+          {topbar()}
+          <div className="go-body">
+            <Mascot mood="happy" size={126} className="mascot" title="Dumpling, happy" />
+            <h1 className="lets" aria-label="Let's eat.">
+              {letters.map((c, i) => <span key={i} aria-hidden="true" style={{ animationDelay: `${300 + i * 60}ms` }}>{c}</span>)}
+            </h1>
+            <p className="go-where">{winner.name} · {winner.walkMin} min</p>
+            <div className="go-avatars">
+              {active.map((m, i) => <span key={m.id} style={{ animationDelay: `${500 + i * 100}ms` }} className="avatar-wrap"><Avatar id={m.id} name={m.name} /></span>)}
+            </div>
+          </div>
+          <div className="go-actions">
+            <a className="pill ink xl" href={`https://www.google.com/maps/dir/?api=1&destination=${winner.lat},${winner.lng}&travelmode=walking`} target="_blank" rel="noreferrer">
+              <Walk /> Walk there
+            </a>
+            <a className="round paper" href={`https://maps.apple.com/?daddr=${winner.lat},${winner.lng}&dirflg=w`} target="_blank" rel="noreferrer" aria-label="Open in Apple Maps"><MapIcon /></a>
+          </div>
+        </div>
+        {toastEl}
+      </main>
+    );
+  }
+
+  /* ---------- the pick ---------- */
+  if (status === "done" && result && winner) {
+    const fitFor = (m) => (result.perPerson || []).find((p) => p.memberId === m.id || p.name === m.name);
+    const label = result.provider === "claude" ? "CLAUDE’S PICK" : "THE PICK";
+    const meta = [`${winner.walkMin} min`, winner.cuisine || winner.kind, shortHours(winner.hours)].filter(Boolean).join(" · ");
+    const n = Math.max(1, active.length);
+    return (
+      <div className="pick-screen split">
+        <aside className="side pick-map">
+          <MapView {...mapProps} />
+        </aside>
+        <main className="main" style={{ display: "flex", flexDirection: "column" }}>
+          {topbar("over")}
+          <section className="drawer" aria-label={`The pick: ${winner.name}`}>
+            <span className="eyebrow">★ {label}</span>
+            <h1 className="pick-name">{winner.name}</h1>
+            <span className="pick-meta">{meta}</span>
+            <ul className="reasons">
+              {active.map((m) => (
+                <li key={m.id}><Avatar id={m.id} name={m.name} small /><span>{fitFor(m)?.reason || "works for you"}</span></li>
+              ))}
+            </ul>
+            {result.mock && <span className="demo-tag">demo mode</span>}
+            <div className="thumb-zone">
+              <button ref={thumbBtn} className={`thumb${me?.thumb ? " on" : ""}`} aria-pressed={!!me?.thumb} aria-label={me?.thumb ? "You're down. Tap to undo" : "I'm down"}
+                disabled={!iAmIn} onClick={() => setThumb(!me?.thumb)}>👍</button>
+              <span className="thumb-pulse" aria-hidden="true" />
+              {burst > 0 && Array.from({ length: 10 }, (_, i) => {
+                const a = (i / 10) * Math.PI * 2, r = 110 + (i % 2) * 22;
+                return <span key={`${burst}-${i}`} className="burst" aria-hidden="true" style={{ "--dx": `${Math.round(Math.cos(a) * r)}px`, "--dy": `${Math.round(Math.sin(a) * r)}px` }} />;
+              })}
+              {active.map((m, i) => {
+                const a = Math.PI * (0.75 + (i / n) * 1.5) + (n === 1 ? Math.PI * 0.75 : 0);
+                const x = 150 + Math.cos(a) * 104, y = 130 + Math.sin(a) * 104;
+                return (
+                  <span key={m.id} className={`orbit${m.thumb ? " on" : ""}`} title={`${m.name}${m.thumb ? " is down" : ""}`}
+                    style={{ left: x, top: y, background: m.thumb ? colorFor(m.id) : undefined }}>{initial(m.name)}</span>
+                );
+              })}
+            </div>
+            <p className="sr" aria-live="polite">{thumbsCount} of {active.length} are down</p>
+          </section>
+        </main>
+        {toastEl}
+      </div>
+    );
+  }
+
+  /* ---------- finding ---------- */
+  if (showFinding) {
+    return (
+      <main className="finding-screen">
+        <div className="bg" aria-hidden="true"><Halftone phase="finding" dark friends={Math.max(1, pitchedCount)} focus={{ x: 0.5, y: 0.42 }} seed={31} /></div>
+        <div className="finding-fade" />
+        {topbar("dark")}
+        <div className="finding-copy" aria-live="polite">
+          <h1 className="finding-word">finding.</h1>
+          <p>{pitchedCount} {pitchedCount === 1 ? "PITCH" : "PITCHES"} · REAL PLACES NEARBY</p>
+        </div>
+      </main>
+    );
+  }
+
+  /* ---------- the table ---------- */
+  return (
+    <div className="split">
+      <aside className="side" aria-hidden="true">{sideMap("waiting")}</aside>
+      <main className="screen main">
+        {topbar()}
+        <div className="strip" aria-hidden="true">{sideMap("waiting")}</div>
+        <div className="table-head">
+          <h1 className="serif-h">{pitchedCount} at the<br />table</h1>
+          <div className="icon-row">
+            <button className="icon-btn" onClick={share} aria-label="Share invite link"><Share /></button>
+            <button className="icon-btn" onClick={() => setShowQR((v) => !v)} aria-pressed={showQR} aria-label="Show QR code"><QrIcon /></button>
+          </div>
+        </div>
+        {showQR && qr && (
+          <div className="qr-card">
+            <img src={qr} alt={`QR code to join ${display}`} />
+            <span className="qr-code">{display}</span>
+          </div>
+        )}
+        <ul className="members">
+          {visible.map((m, i) => {
+            const mine = m.id === memberId;
+            const typing = !mine && serverNow - m.typingAt < 2500;
+            const shownPitch = mine ? pitch : m.pitch;
+            const shownName = mine ? name : m.name;
+            return (
+              <li key={m.id} className={`member${typing ? " typing-now" : ""}`} style={{ animationDelay: `${Math.min(i, 6) * 60}ms` }}>
+                <Avatar id={m.id} name={shownName} leader={m.id === group?.leaderId} />
+                <div className="body">
+                  <div className="who">
+                    <span className="nm">{shownName || "New friend"}</span>
+                    {mine && status === "waiting" && (
+                      <button className="edit" aria-label="Edit your pitch" onClick={() => setView("pitch")}><Pencil /></button>
+                    )}
+                  </div>
+                  {typing ? (
+                    <span className="dots" role="img" aria-label={`${m.name || "Someone"} is typing`}><i /><i /><i /></span>
+                  ) : (
+                    <span className={`said${shownPitch ? "" : " empty"}`}>{shownPitch || "thinking…"}</span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="dock">
+          {group?.error && <p className="err" role="alert">{group.error}</p>}
           {isLeader ? (
-            <button className="btn" onClick={find} disabled={finding || pitchedCount === 0}>
-              🔍 Find food for {pitchedCount} {pitchedCount === 1 ? "person" : "people"}
+            <button ref={findBtn} className="pill orange xl find-btn" onClick={find} disabled={finding || pitchedCount === 0}>
+              Find <Search />
             </button>
           ) : (
-            <div className="waitnote">⏳ Waiting for {leaderName} to hit Find… you can still edit your pitch.</div>
+            <p className="wait">{leaderName} hits find</p>
           )}
         </div>
-      </div>
-    </main>
+      </main>
+      {toastEl}
+    </div>
   );
 }

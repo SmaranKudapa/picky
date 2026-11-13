@@ -7,7 +7,9 @@ function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
-export default function MapView({ center, places, winnerId, backupIds = [], ruledOutIds = [] }) {
+const STAR = '<svg class="starpin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8l3.1 6.6 7.1.9-5.2 4.9 1.3 7.1L12 17.8l-6.3 3.5 1.3-7.1-5.2-4.9 7.1-.9z" fill="#ff6a1f" stroke="#22170f" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+
+export default function MapView({ center, places, winnerId, backupIds = [], ruledOutIds = [], reasons = {} }) {
   const el = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
@@ -44,13 +46,14 @@ export default function MapView({ center, places, winnerId, backupIds = [], rule
       const isBackup = backupIds.includes(p.id);
       const isOut = ruledOutIds.includes(p.id);
       if (isWin) winner = p;
-      const cls = isWin ? "win" : isBackup ? "" : isOut ? "out" : "dot";
-      const label = isWin ? `⭐ ${esc(p.name)} · ${p.walkMin} min` : isOut ? `${esc(p.name)} 🚫` : esc(p.name);
+      const cls = isWin ? "win" : isBackup ? "backup" : isOut ? "out" : "dot";
+      const label = isWin ? `${esc(p.name)} · ${p.walkMin} min` : esc(p.name);
+      const mark = isWin ? STAR : isOut ? '<div class="x"></div>' : '<div class="pt"></div>';
       const m = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: "", html: `<div class="pin ${cls}"><div class="bub">${label}</div><div class="pt"></div></div>`, iconSize: [0, 0] }),
+        icon: L.divIcon({ className: "", html: `<div class="pin ${cls}">${mark}<div class="bub">${label}</div></div>`, iconSize: [0, 0] }),
         zIndexOffset: isWin ? 1000 : isBackup ? 600 : isOut ? 300 : 0,
       }).addTo(layer);
-      m.bindPopup(`<b>${esc(p.name)}</b><br>${esc(p.cuisine || p.kind)} · ${p.walkMin} min walk${p.hours ? `<br><small>${esc(p.hours)}</small>` : ""}`);
+      m.bindPopup(`<b>${esc(p.name)}</b><br>${esc(p.cuisine || p.kind)} · ${p.walkMin} min walk${isOut && reasons[p.id] ? `<br><s>${esc(reasons[p.id])}</s>` : ""}${p.hours ? `<br><small>${esc(p.hours)}</small>` : ""}`);
     }
 
     // Show every nearby place, plus you.
