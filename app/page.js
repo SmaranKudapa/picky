@@ -2,12 +2,11 @@
 // picky — the whole phone flow on one page: landing → pitch → the table → finding → the pick → everyone's in.
 // State, polling and API calls are unchanged from main; only the views are new (see the UI reference canvas).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import QRCode from "qrcode";
 import { PITCH_LIMIT, NAME_LIMIT } from "@/lib/config";
+import Halftone from "./components/Halftone";
 import Mascot from "./components/Mascot";
 
-const MapView = dynamic(() => import("./MapView"), { ssr: false, loading: () => <div className="map" /> });
 
 const COLORS = ["#1d8a4b", "#d6336c", "#2b6fe0", "#e5520a", "#7048e8", "#0c8599", "#b8860b", "#c2255c", "#4f46e5", "#2f9e44"];
 function colorFor(id = "") {
@@ -359,20 +358,6 @@ export default function Home() {
   const iAmIn = active.some((m) => m.id === memberId);
   const allIn = active.length > 0 && thumbsCount === active.length;
   const placeById = useMemo(() => Object.fromEntries((result?.places || []).map((p) => [p.id, p])), [result?.foundAt]); // eslint-disable-line react-hooks/exhaustive-deps
-  const mapProps = useMemo(
-    () =>
-      result
-        ? {
-            center: result.center,
-            places: result.places,
-            winnerId: result.winnerId,
-            backupIds: (result.backups || []).map((b) => b.id),
-            ruledOutIds: (result.ruledOut || []).map((b) => b.id),
-            reasons: Object.fromEntries((result.ruledOut || []).map((r) => [r.id, r.reason])),
-          }
-        : null,
-    [result?.foundAt] // eslint-disable-line react-hooks/exhaustive-deps
-  );
   const winner = result ? placeById[result.winnerId] : null;
   const toastEl = toast ? <div className="toast" role="status">{toast}</div> : null;
 
@@ -385,6 +370,8 @@ export default function Home() {
     const valid = typed >= 3;
     return (
       <main className="landing">
+        <div className="land-map"><Halftone phase="idle" focus={{ x: 0.66, y: 0.5 }} /></div>
+        <div className="land-fade" />
         <span className="wordmark">picky</span>
         <section className="land-copy">
           <div>
@@ -407,12 +394,14 @@ export default function Home() {
   }
 
   const topbar = (tone) => <TopBar display={display} onLeave={leave} onCopy={copyCode} tone={tone} />;
+  const sideMap = (phase) => <Halftone phase={phase} friends={Math.max(1, active.length)} focus={{ x: 0.55, y: 0.48 }} seed={19} />;
 
   /* ---------- pitch ---------- */
   if (view === "pitch") {
     const over = pitch.length > PITCH_LIMIT;
     return (
-      <div className="split solo">
+      <div className="split">
+        <aside className="side" aria-hidden="true">{sideMap("waiting")}</aside>
         <main className="screen main">
           {topbar()}
           <div className="pitch-body">
@@ -486,8 +475,8 @@ export default function Home() {
     const n = Math.max(1, active.length);
     return (
       <div className="pick-screen split">
-        <aside className="side pick-map">
-          <MapView {...mapProps} />
+        <aside className="side pick-map" aria-hidden="true">
+          <Halftone phase="done" friends={n} focus={{ x: 0.55, y: 0.5 }} seed={19} />
         </aside>
         <main className="main" style={{ display: "flex", flexDirection: "column" }}>
           {topbar("over")}
@@ -530,6 +519,8 @@ export default function Home() {
   if (showFinding) {
     return (
       <main className="finding-screen">
+        <div className="bg" aria-hidden="true"><Halftone phase="finding" dark friends={Math.max(1, pitchedCount)} focus={{ x: 0.5, y: 0.42 }} seed={31} /></div>
+        <div className="finding-fade" />
         {topbar("dark")}
         <div className="finding-copy" aria-live="polite">
           <h1 className="finding-word">finding.</h1>
@@ -541,9 +532,11 @@ export default function Home() {
 
   /* ---------- the table ---------- */
   return (
-    <div className="split solo">
+    <div className="split">
+      <aside className="side" aria-hidden="true">{sideMap("waiting")}</aside>
       <main className="screen main">
         {topbar()}
+        <div className="strip" aria-hidden="true">{sideMap("waiting")}</div>
         <div className="table-head">
           <h1 className="serif-h">{pitchedCount} at the<br />table</h1>
           <div className="icon-row">
