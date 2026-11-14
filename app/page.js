@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { PITCH_LIMIT, NAME_LIMIT } from "@/lib/config";
+import { DEV_SECRET } from "@/lib/dev";
 import Halftone from "./components/Halftone";
 import Mascot from "./components/Mascot";
 
@@ -67,9 +68,16 @@ function Avatar({ id, name, small, leader }) {
 }
 
 function TopBar({ display, onLeave, onCopy, tone = "", restart = false }) {
+  // On the end screen, the "tap to pick again" hint waits 2 s so "Let's eat." lands first.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!restart) return setArmed(false);
+    const t = setTimeout(() => setArmed(true), 2000);
+    return () => clearTimeout(t);
+  }, [restart]);
   return (
     <header className={`topbar ${tone}`}>
-      {restart ? (
+      {restart && armed ? (
         <>
           <button className="wordmark again" onClick={onLeave} aria-label="picky: start a new group">
             picky
@@ -229,12 +237,12 @@ export default function Home() {
     window.history.replaceState(null, "", `?g=${g.code}`);
   };
 
-  const createGroup = async () => {
+  const createGroup = async (dev = false) => {
     setBusy(true);
     setError("");
     const mId = newId();
     try {
-      const r = await fetch("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memberId: mId }) });
+      const r = await fetch("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memberId: mId, dev: dev === true }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Couldn't create group");
       enterGroup(d.group, mId);
@@ -250,6 +258,7 @@ export default function Home() {
   const joinGroup = async () => {
     const c = joinCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!c) return;
+    if (c === DEV_SECRET) return createGroup(true); // secret dev mode: no API credits used
     setBusy(true);
     setError("");
     try {
@@ -401,7 +410,7 @@ export default function Home() {
               <button className="round ink" type="submit" aria-label="Join group" disabled={!valid || busy}><ArrowRight /></button>
             </div>
             <div className="land-or" aria-hidden="true"><span>OR</span></div>
-            <button className="pill orange start" type="button" onClick={createGroup} disabled={busy || typed > 0}>Start Group</button>
+            <button className="pill orange start" type="button" onClick={() => createGroup()} disabled={busy || typed > 0}>Start Group</button>
             {error && <p className="err" role="alert">{error}</p>}
           </form>
         </section>
@@ -505,7 +514,7 @@ export default function Home() {
                 <li key={m.id}><Avatar id={m.id} name={m.name} small /><span>{fitFor(m)?.reason || "works for you"}</span></li>
               ))}
             </ul>
-            {result.mock && <span className="demo-tag">demo mode</span>}
+            {result.dev ? <span className="demo-tag">dev mode · no credits used</span> : result.mock && <span className="demo-tag">demo mode</span>}
             <div className="thumb-zone">
               <button ref={thumbBtn} className={`thumb${me?.thumb ? " on" : ""}`} aria-pressed={!!me?.thumb} aria-label={me?.thumb ? "You're down. Tap to undo" : "I'm down"}
                 disabled={!iAmIn} onClick={() => setThumb(!me?.thumb)}>👍</button>
@@ -540,7 +549,7 @@ export default function Home() {
         {topbar("dark")}
         <div className="finding-copy" aria-live="polite">
           <h1 className="finding-word">finding.</h1>
-          <p>{pitchedCount} {pitchedCount === 1 ? "PITCH" : "PITCHES"} · REAL PLACES NEARBY</p>
+          <p>{pitchedCount} {pitchedCount === 1 ? "PITCH" : "PITCHES"} · {group?.dev ? "DEV MODE" : "REAL PLACES NEARBY"}</p>
         </div>
       </main>
     );

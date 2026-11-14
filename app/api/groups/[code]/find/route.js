@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getJSON, setJSON, hgetallJSON, setIfAbsent, del, keys, normCode } from "@/lib/store";
 import { getNearbyPlaces } from "@/lib/places";
 import { pickRestaurant } from "@/lib/pick";
+import { devResult } from "@/lib/dev";
 import { DEFAULT_CENTER, FIND_STALE_MS } from "@/lib/config";
 
 export const maxDuration = 60;
@@ -24,9 +25,17 @@ export async function POST(req, { params }) {
       .filter((m) => m.name || m.pitch)
       .sort((a, b) => a.joinedAt - b.joinedAt);
     if (!members.length) throw new Error("Nobody has pitched yet");
-    const places = await getNearbyPlaces(center);
-    const pick = await pickRestaurant(members, places);
-    const done = { ...group, status: "done", findingAt: null, error: null, result: { center, places, ...pick, foundAt: Date.now() } };
+    let result;
+    if (group.dev) {
+      // Dev mode: no places API, no AI. Short pause so the finding screen still shows.
+      await new Promise((r) => setTimeout(r, 1800));
+      result = { center: DEFAULT_CENTER, ...devResult(members, DEFAULT_CENTER) };
+    } else {
+      const places = await getNearbyPlaces(center);
+      const pick = await pickRestaurant(members, places);
+      result = { center, places, ...pick };
+    }
+    const done = { ...group, status: "done", findingAt: null, error: null, result: { ...result, foundAt: Date.now() } };
     await setJSON(keys.group(code), done);
     return NextResponse.json({ group: done });
   } catch (e) {
