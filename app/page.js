@@ -66,10 +66,25 @@ function Avatar({ id, name, small, leader }) {
   );
 }
 
-function TopBar({ display, onLeave, onCopy, tone = "" }) {
+function TopBar({ display, onLeave, onCopy, tone = "", restart = false }) {
   return (
     <header className={`topbar ${tone}`}>
-      <button className="wordmark" onClick={onLeave} title="Leave group">picky</button>
+      {restart ? (
+        <>
+          <button className="wordmark again" onClick={onLeave} aria-label="picky: start a new group">
+            picky
+            <span className="again-ico" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
+            </span>
+          </button>
+          <div className="again-note" aria-hidden="true">
+            <svg width="56" height="52" viewBox="0 0 56 52" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M50 46 C 30 44, 14 34, 10 8" /><path d="M3 16 L10 6 L18 14" /></svg>
+            <span>tap to pick again</span>
+          </div>
+        </>
+      ) : (
+        <button className="wordmark" onClick={onLeave} title="Leave group">picky</button>
+      )}
       <button className="chip" onClick={onCopy} aria-label={`Group code ${display}, tap to copy`}>{display}</button>
     </header>
   );
@@ -376,7 +391,7 @@ export default function Home() {
         <section className="land-copy">
           <div>
             <h1 className="idk">eats?</h1>
-            <p className="idk-sub">find a food spot that works</p>
+            <p className="idk-sub">find a spot everyone agrees on</p>
           </div>
           <form className="land-form" onSubmit={(e) => { e.preventDefault(); if (valid && !busy) joinGroup(); }}>
             <div className="code-row">
@@ -394,7 +409,7 @@ export default function Home() {
     );
   }
 
-  const topbar = (tone) => <TopBar display={display} onLeave={leave} onCopy={copyCode} tone={tone} />;
+  const topbar = (tone, restart = false) => <TopBar display={display} onLeave={leave} onCopy={copyCode} tone={tone} restart={restart} />;
   const sideMap = (phase) => <Halftone phase={phase} friends={Math.max(1, active.length)} focus={{ x: 0.55, y: 0.48 }} seed={19} />;
 
   /* ---------- pitch ---------- */
@@ -414,7 +429,7 @@ export default function Home() {
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <label className="sr" htmlFor="pitch">Your pitch</label>
               <div ref={pitchBox} className={`pitch-box${over ? " over" : ""}`}>
-                <textarea id="pitch" className="pitch-text" placeholder="what do you want?" value={pitch} aria-invalid={over} aria-describedby="count"
+                <textarea id="pitch" className="pitch-text" placeholder="list food restrictions and preferences" value={pitch} aria-invalid={over} aria-describedby="count"
                   autoFocus={!!name} onChange={(e) => onEdit(name, e.target.value)} />
               </div>
               <div className={`meter${over ? " over" : ""}`}>
@@ -445,7 +460,7 @@ export default function Home() {
     return (
       <main className="go-screen">
         <div className="flood">
-          {topbar()}
+          {topbar("", true)}
           <div className="go-body">
             <Mascot mood="happy" size={126} className="mascot" title="Dumpling, happy" />
             <h1 className="lets" aria-label="Let's eat.">
