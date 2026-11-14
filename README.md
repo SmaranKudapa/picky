@@ -1,42 +1,86 @@
 # picky
 
-Ends the "idk, where do you want to eat?" loop. Phone-first web app.
+**Ends the "idk, where do you want to eat?" loop.** Everyone in your group says what they want from their own phone, and picky picks the one nearby restaurant that works for all of you, then walks you there.
 
-**How it works:** make a group, everyone pitches, and the leader hits Find. The app pulls the real restaurants near the leader from OpenStreetMap, and an AI (OpenAI by default, Claude optional) picks the one spot that works for everyone. Everyone thumbs-up, then you get directions.
+🥈 **2nd place at Hack With Claude** (UC Berkeley, November 13, 2026)
 
-## Deploy to Vercel (about 5 minutes)
+**Try it:** [picky-ten-flax.vercel.app](https://picky-ten-flax.vercel.app). Open it on your phone and start a group with friends.
 
-1. Push this folder to a GitHub repo, then go to **vercel.com → Add New → Project → import the repo**.
-2. **Environment variables:** add `OPENAI_API_KEY`. (Or `ANTHROPIC_API_KEY` to use Claude instead.) Add `GEOAPIFY_API_KEY` too (free at myprojects.geoapify.com) so restaurant data doesn't depend on the free OpenStreetMap servers.
-3. Deploy. Then go to **Project → Storage → Create Database → Upstash (Redis) → Connect to project**. This adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` for you.
-4. **Redeploy**, under Deployments → ⋯ → Redeploy. Redis is required, because it's how the phones share live state.
-5. Open the URL on your phone. When the leader hits Find, allow location access. If location is denied, it falls back to Chou Hall at UC Berkeley.
+## Demo
 
-## Run locally
+<!-- DEMO VIDEO: on github.com, edit this file and drag your video file right here. GitHub uploads it and puts a link on this line that plays inline. -->
+*Demo video coming soon.*
+
+<p align="center">
+  <img src="docs/screenshots/landing.jpg" width="19%" alt="Landing: eats? find a spot everyone agrees on">
+  <img src="docs/screenshots/pitch.jpg" width="19%" alt="Pitch: vegetarian and broke lol">
+  <img src="docs/screenshots/waiting.jpg" width="19%" alt="Waiting room with live typing">
+  <img src="docs/screenshots/pick.jpg" width="19%" alt="The pick, with a reason for each person">
+  <img src="docs/screenshots/lets-eat.jpg" width="19%" alt="Let's eat, with directions">
+</p>
+<p align="center"><sub>Screenshots use sample restaurants.</sub></p>
+
+## How it works
+
+1. **Start a group.** You get a code like `TACO-42` to share, or friends can scan a QR code.
+2. **Everyone pitches.** Each person types what they want in 80 characters or less: diet, budget, cravings, vetoes. Go over the limit and picky tells you "dont be picky 😒".
+3. **Wait for the table.** Pitches show up live as friends join, including "is typing". Anyone can edit until the leader hits Find.
+4. **Find.** picky grabs the real restaurants near the leader, and an AI weighs everyone's pitch to choose one spot. It explains in one line why the pick works for each person.
+5. **Thumbs up, then go.** When everyone taps 👍, you get walking directions. Tap the picky logo to start a new round.
+
+## Why it's more than a chatbot
+
+- **Everyone's input at once.** Each friend pitches from their own phone, so nobody has to collect everyone's constraints and paste them somewhere.
+- **Real places, right now.** Restaurants come from live OpenStreetMap data around you, with distance and opening hours.
+- **Shared, live state.** Typing indicators, locked pitches and a group vote sync across every phone.
+- **It ends with an action.** There's a decision everyone agreed to and directions, not just a list of suggestions.
+
+## Dev mode
+
+Type **`DEV-67`** as the group code to test the whole flow without spending any API credits. It creates a test group (code `DEV-xxxx`, which friends can join) that goes through every screen. Find skips the restaurant search and the AI, and always picks the Taco Bell on Durant Ave, telling everyone "default location lol".
+
+## Tech
+
+| Part | What it uses |
+|---|---|
+| App | Next.js (App Router), React, one phone-first page |
+| Live sync | Upstash Redis. Phones poll every second |
+| Restaurants | OpenStreetMap data through Geoapify, with Overpass, Nominatim and Photon as backups, plus a 7-day cache |
+| The pick | OpenAI (Claude also supported) with a strict JSON schema. Every restaurant id is checked against the real list |
+| Hosting | Vercel |
+| Built with | Claude Code |
+
+If the AI is unavailable for any reason, picky still finishes with the closest restaurant (marked "demo mode"), so a Find never gets stuck.
+
+## Run it yourself
 
 ```bash
 npm install
-cp .env.example .env.local   # add your OPENAI_API_KEY
-npm run dev                  # http://localhost:3000 (in-memory store works locally)
+cp .env.example .env.local
+npm run dev        # http://localhost:3000
 ```
 
-## Where things live
+Everything works locally without setup: the store is in memory, and without an AI key, picky picks the closest place. Add keys in `.env.local` for the full experience:
+
+| Variable | What it's for |
+|---|---|
+| `OPENAI_API_KEY` | The AI pick (or use `ANTHROPIC_API_KEY` for Claude) |
+| `GEOAPIFY_API_KEY` | More reliable restaurant data (free tier at geoapify.com) |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Shared state across phones when hosted (Upstash Redis) |
+| `PICKY_FAKE_PLACES=1` | Made-up restaurants, so you can test offline |
+
+## Project structure
 
 | File | What it does |
 |---|---|
-| `app/page.js` | The whole phone UI: landing, pitch, waiting room, results, thumbs, directions |
-| `app/MapView.js` | Leaflet map that marks every nearby place, stars the pick and crosses out the losers |
-| `app/api/groups/...` | Create a group, poll the state, save your pitch/typing/thumb, and Find |
-| `lib/places.js` | Real restaurants from OpenStreetMap data: Geoapify (if `GEOAPIFY_API_KEY` is set), then Overpass, the cached list, Nominatim and Photon. Caches the last good result |
-| `lib/pick.js` | The AI call: OpenAI if `OPENAI_API_KEY` is set (model `OPENAI_MODEL`, default `gpt-5.4-mini`), else Claude if `ANTHROPIC_API_KEY` is set, else demo mode. Structured JSON output. Returns the winner, a reason per person, 2 backups and why the others lost. Every id is checked, and any bad reply, error or timeout falls back to the closest place |
-| `lib/config.js` | Pitch limit (80 chars), default location, how long before a stuck "finding…" resets |
+| `app/page.js` | Every screen: landing, pitch, waiting room, finding, the pick, let's eat |
+| `app/api/groups/` | Create a group, poll its state, save pitches, typing and thumbs, and Find |
+| `lib/places.js` | Finds nearby restaurants, with backups and caching |
+| `lib/pick.js` | The AI prompt, JSON schema, checks and fallback |
+| `lib/dev.js` | Dev mode |
 
-## Reliability (so the demo can't get stuck)
-- Find fits inside Vercel's 60 s limit: OpenStreetMap gets about 15 s across its 3 mirrors, and the AI gets 35 s.
-- If the AI fails in any way, the app still finishes Find with the closest place (shown as "Demo mode").
-- If a Find dies partway, phones leave "finding…" after 75 s and the leader can hit Find again.
-- The restaurant list is cached for 7 days. If OpenStreetMap is down, the app reuses the last good list from within 1.5 km.
+More detail is in the [MVP write-up (PDF)](docs/picky_MVP.pdf).
 
-## Demo tips
-- Do one practice Find at the demo spot beforehand. The restaurant list gets cached, so the live demo still works if the map data service is slow.
-- Phones sync every second, and "is typing" shows for 2.5 s after each keystroke.
+---
+
+Built by [Smaran Kudapa](https://github.com/SmaranKudapa) at Hack With Claude, UC Berkeley. Restaurant data © OpenStreetMap contributors.
