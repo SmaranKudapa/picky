@@ -87,6 +87,9 @@ canvas { display: block; }
 .code-input::placeholder { color: #c9b9a3; }
 .code-input:focus { border-color: var(--ink); box-shadow: 0 0 0 4px rgba(34, 23, 15, .07); }
 .land-form .err { text-align: center; }
+.land-or { display: flex; align-items: center; gap: 14px; color: var(--faint); font: 600 13px/1 var(--mono); letter-spacing: .24em; }
+.land-or::before, .land-or::after { content: ""; flex: 1; height: 1.5px; background: var(--line-strong); }
+.pill.orange.start { font: 800 25px/1 var(--sans); letter-spacing: -.02em; }
 
 /* ---------- pitch ---------- */
 .screen { min-height: 100svh; display: flex; flex-direction: column; position: relative; }

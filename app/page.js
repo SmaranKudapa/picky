@@ -375,17 +375,18 @@ export default function Home() {
         <span className="wordmark">picky</span>
         <section className="land-copy">
           <div>
-            <h1 className="idk">idk.</h1>
-            <p className="idk-sub">where do you want to eat?</p>
+            <h1 className="idk">eats?</h1>
+            <p className="idk-sub">find a food spot that works</p>
           </div>
           <form className="land-form" onSubmit={(e) => { e.preventDefault(); if (valid && !busy) joinGroup(); }}>
             <div className="code-row">
               <label className="sr" htmlFor="code">Group code</label>
-              <input id="code" className="code-input" placeholder="TACO-42" value={joinCode} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+              <input id="code" className="code-input" placeholder="ENTER-CODE" value={joinCode} autoComplete="off" autoCapitalize="characters" spellCheck={false}
                 onChange={(e) => setJoinCode(formatCode(e.target.value))} />
               <button className="round ink" type="submit" aria-label="Join group" disabled={!valid || busy}><ArrowRight /></button>
             </div>
-            <button className="pill orange" type="button" onClick={createGroup} disabled={busy || typed > 0}>New group</button>
+            <div className="land-or" aria-hidden="true"><span>OR</span></div>
+            <button className="pill orange start" type="button" onClick={createGroup} disabled={busy || typed > 0}>Start Group</button>
             {error && <p className="err" role="alert">{error}</p>}
           </form>
         </section>
