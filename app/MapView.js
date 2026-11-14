@@ -19,7 +19,7 @@ export default function MapView({ center, places, winnerId, backupIds = [], rule
     const map = L.map(el.current, { zoomControl: false }).setView([center.lat, center.lng], 16);
     L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO · Places by <a href="https://www.geoapify.com/">Geoapify</a>',
     }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
