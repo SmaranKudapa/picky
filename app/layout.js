@@ -5,6 +5,7 @@ import "@fontsource/instrument-serif/400-italic.css";
 import "./globals.css";
 
 export const metadata = {
+  metadataBase: new URL("https://picky-ten-flax.vercel.app"),
   title: "picky",
   description: "idk, where do you want to eat? Everyone pitches, one place gets picked.",
 };
