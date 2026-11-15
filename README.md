@@ -72,4 +72,4 @@ It works with no setup: the store is in memory, and without an AI key picky pick
 
 ---
 
-<sub>Built by [Smaran Kudapa](https://github.com/SmaranKudapa) at Hack With Claude, UC Berkeley. Restaurant data © OpenStreetMap contributors.</sub>
+<sub>Built by [Smaran Kudapa](https://github.com/SmaranKudapa) and [Nick Dev](https://github.com/nick-devvv) at Hack With Claude, UC Berkeley. Restaurant data © OpenStreetMap contributors.</sub>
