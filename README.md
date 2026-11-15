@@ -83,4 +83,4 @@ More detail is in the [MVP write-up (PDF)](docs/picky_MVP.pdf).
 
 ---
 
-Built by [Smaran Kudapa](https://github.com/SmaranKudapa) at Hack With Claude, UC Berkeley. Restaurant data © OpenStreetMap contributors.
+Built by [Smaran Kudapa](https://github.com/SmaranKudapa) and [Nick Dev](https://github.com/nick-devvv) at Hack With Claude, UC Berkeley. Restaurant data © OpenStreetMap contributors.
