@@ -12,9 +12,9 @@
 
 <br>
 
-<img src="docs/demo.gif" width="300" alt="picky on a phone: Aisha starts a group and pitches 'vegetarian and broke lol', Ben and Chloe join live, Find searches nearby places, picky picks Sun Bowl Thai with a reason for each person, and everyone heads out">
+<a href="docs/demo.mp4"><img src="docs/demo.gif" width="300" alt="picky on a phone: Smaran starts a group and pitches 'Vegetarian, gimme something niche', Arjun, Marcus and Diego join live, Find searches nearby places, picky picks Little Rangoon with a reason for each person, and everyone heads out"></a>
 
-<sub>The demo uses sample restaurants.</sub>
+<sub>The demo uses sample restaurants. <a href="docs/demo.mp4">Watch the video</a>.</sub>
 
 </div>
 
