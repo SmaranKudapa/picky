@@ -8,10 +8,12 @@
 
 🥈 **2nd place at Hack With Claude** · UC Berkeley, November 2026
 
-[Try it on your phone](https://picky-ten-flax.vercel.app) · [MVP write-up (PDF)](docs/picky_MVP.pdf)
+[Try it on your phone](https://picky-ten-flax.vercel.app)
 
 <br>
 
+<a href="docs/demo.mp4"><img src="docs/demo-thumbnail.png" width="300" alt="picky demo video: 4 cravings, 1 spot, 30 seconds. Tap to watch"></a>
+&nbsp;
 <a href="docs/demo.mp4"><img src="docs/demo.gif" width="300" alt="picky on a phone: Smaran starts a group and pitches 'Vegetarian, gimme something niche', Arjun, Marcus and Diego join live, Find searches nearby places, picky picks Little Rangoon with a reason for each person, and everyone heads out"></a>
 
 <sub>The demo uses sample restaurants. <a href="docs/demo.mp4">Watch the video</a>.</sub>
